@@ -1,0 +1,126 @@
+// Copyright 2026 Tagca Hui
+// Licensed under the MIT License
+
+#include "request_builder.hpp"
+#include <hv/base64.h>
+
+namespace reqhv {
+
+RequestBuilder::RequestBuilder(http_method method, const std::string& url)
+    : url_(url) {
+    request_ = std::make_shared<HttpRequest>();
+    request_->method = method;
+    request_->url = url;
+}
+
+RequestBuilder& RequestBuilder::header(std::string_view key, std::string_view value) {
+    request_->headers[std::string(key)] = std::string(value);
+    return *this;
+}
+
+RequestBuilder& RequestBuilder::headers(const http_headers& headers) {
+    request_->headers = headers;
+    return *this;
+}
+
+RequestBuilder& RequestBuilder::body(std::string data) {
+    request_->body = std::move(data);
+    return *this;
+}
+
+RequestBuilder& RequestBuilder::body(const char* data, size_t len) {
+    request_->body.assign(data, len);
+    return *this;
+}
+
+RequestBuilder& RequestBuilder::json(const nlohmann::json& data) {
+    request_->json = data;
+    request_->content_type = APPLICATION_JSON;
+    return *this;
+}
+
+RequestBuilder& RequestBuilder::form(const std::map<std::string, std::string>& data) {
+    request_->kv = data;
+    request_->content_type = X_WWW_FORM_URLENCODED;
+    return *this;
+}
+
+RequestBuilder& RequestBuilder::query(const std::string& params) {
+    if (!url_.empty() && url_.find('?') == std::string::npos) {
+        url_ += '?';
+        url_ += params;
+        request_->url = url_;
+    }
+    return *this;
+}
+
+RequestBuilder& RequestBuilder::bearer_auth(const std::string& token) {
+    request_->headers["Authorization"] = "Bearer " + token;
+    return *this;
+}
+
+RequestBuilder& RequestBuilder::basic_auth(const std::string& user, const std::string& pass) {
+    auto user_pass = user + ":" + pass;
+    std::string encoded = hv::Base64Encode((const unsigned char*)user_pass.data(), (unsigned int)user_pass.size());
+    request_->headers["Authorization"] = "Basic " + encoded;
+    return *this;
+}
+
+RequestBuilder& RequestBuilder::timeout(std::chrono::milliseconds ms) {
+    timeout_ = ms;
+    return *this;
+}
+
+Response RequestBuilder::do_send() {
+    auto resp = std::make_shared<HttpResponse>();
+    int ret = http_client_send(request_.get(), resp.get());
+    if (ret != 0) {
+        throw HttpException::request(ret, url_);
+    }
+    Response response(resp);
+    response.set_url(url_);
+    return response;
+}
+
+Response RequestBuilder::send_sync() {
+    return do_send();
+}
+
+Response RequestBuilder::send() {
+    auto resp = do_send();
+
+    while (resp.is_redirect() && redirect_count_ < max_redirects_) {
+        ++redirect_count_;
+        auto location = resp.header("Location");
+        if (!location.has_value()) {
+            break;
+        }
+        url_ = *location;
+        request_->url = url_;
+        auto status = resp.status_code();
+        if ((status == 301 || status == 302 || status == 303) &&
+            request_->method == HTTP_POST) {
+            request_->method = HTTP_GET;
+            request_->body.clear();
+        }
+        resp = do_send();
+    }
+
+    return resp;
+}
+
+std::future<Response> RequestBuilder::send_async() {
+    auto promise = std::make_shared<std::promise<Response>>();
+    auto req = request_;
+    auto target_url = url_;
+
+    http_client_send_async(req, [promise, target_url](const HttpResponsePtr& resp) {
+        Response response(std::make_shared<HttpResponse>(*resp));
+        response.set_url(target_url);
+        promise->set_value(std::move(response));
+    });
+
+    return promise->get_future();
+}
+
+} // namespace reqhv
