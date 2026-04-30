@@ -32,6 +32,11 @@ ClientBuilder& ClientBuilder::cookie_store(bool enable) {
     return *this;
 }
 
+ClientBuilder& ClientBuilder::cookie_path(const std::string& path) {
+    config_.cookie_file_path = path;
+    return *this;
+}
+
 ClientBuilder& ClientBuilder::redirect(int max_redirects) {
     config_.max_redirects = max_redirects;
     return *this;

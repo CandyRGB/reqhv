@@ -22,6 +22,9 @@ Client::Client(const Config& config)
     for (const auto& [key, value] : config_.default_headers) {
         http_client_.setHeader(key.c_str(), value.c_str());
     }
+    if (config_.cookie_store && !config_.cookie_file_path.empty()) {
+        cookie_jar_.load(config_.cookie_file_path);
+    }
 }
 
 Client::Client(Client&& other) noexcept

@@ -68,11 +68,33 @@ RequestBuilder& RequestBuilder::basic_auth(const std::string& user, const std::s
 }
 
 Response RequestBuilder::do_send() {
+    // 发送前：从 CookieJar 匹配 URL 对应的 cookies，添加到请求
+    if (client_.get().cookie_store_enabled()) {
+        auto& jar = client_.get().cookie_jar();
+        for (const auto& cookie : jar.match(url_)) {
+            request_->AddCookie(cookie);
+        }
+    }
+
     auto resp = std::make_shared<HttpResponse>();
     int ret = client_.get().http_client().send(request_.get(), resp.get());
     if (ret != 0) {
         throw HttpException::request(ret, url_);
     }
+
+    // 接收后：解析响应头的 Set-Cookie，存入 CookieJar
+    if (client_.get().cookie_store_enabled()) {
+        auto& jar = client_.get().cookie_jar();
+        for (const auto& [key, value] : resp->headers) {
+            if (key == "Set-Cookie") {
+                HttpCookie cookie;
+                if (cookie.parse(value)) {
+                    jar.add(cookie);
+                }
+            }
+        }
+    }
+
     Response response(resp);
     response.set_url(url_);
     return response;

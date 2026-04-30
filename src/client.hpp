@@ -12,6 +12,7 @@
 #include "config.hpp"
 #include "client_builder.hpp"
 #include "request_builder.hpp"
+#include "cookie_jar.hpp"
 
 namespace reqhv {
 
@@ -50,9 +51,12 @@ private:
     // 供 RequestBuilder 调用
     hv::HttpClient& http_client() { return http_client_; }
     int max_redirects() const { return config_.max_redirects; }
+    CookieJar& cookie_jar() { return cookie_jar_; }
+    bool cookie_store_enabled() const { return config_.cookie_store; }
 
     Config config_;
     hv::HttpClient http_client_;
+    CookieJar cookie_jar_;
 
     friend class ClientBuilder;
     friend class RequestBuilder;

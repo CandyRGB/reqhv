@@ -64,7 +64,7 @@ TEST(ReqhvTest, ManyParallelAsyncRequests) {
     auto end = std::chrono::steady_clock::now();
     auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
-    EXPECT_LT(6000, elapsed_ms) << "Should complete in ~6s if parallel, was " << elapsed_ms << "ms";
+    EXPECT_LT(elapsed_ms, 6000) << "Should complete in ~6s if parallel, was " << elapsed_ms << "ms";
     EXPECT_EQ(res1.status_code(), 200);
     EXPECT_EQ(res2.status_code(), 200);
     EXPECT_EQ(res3.status_code(), 200);

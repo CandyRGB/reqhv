@@ -30,6 +30,7 @@ add_library(reqhv STATIC
     src/request_builder.cpp
     src/response.cpp
     src/exception.cpp
+    src/cookie_jar.cpp
 )
 
 target_include_directories(reqhv PUBLIC
