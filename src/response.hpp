@@ -14,14 +14,12 @@
 
 namespace reqhv {
 
+class RequestBuilder;
+
 // HTTP 响应封装类
 // 统一访问响应状态、Header、Body（文本/JSON/字节）
 class Response {
 public:
-    Response() = default;
-    explicit Response(std::shared_ptr<HttpResponse> resp)
-        : response_(std::move(resp)) {}
-
     // 状态码相关
     int status_code() const;             // 获取 HTTP 状态码
     bool is_success() const;             // 2xx 表示成功
@@ -49,9 +47,17 @@ public:
     explicit operator bool() const { return response_ != nullptr; }
 
 private:
+    Response() = delete;
+
+    // 供 RequestBuilder 调用
+    explicit Response(std::shared_ptr<HttpResponse> resp)
+        : response_(std::move(resp)) {}
+    
     std::shared_ptr<HttpResponse> response_;  // libhv 原始响应对象
     std::string url_;                         // 最终请求 URL（跟随重定向后）
     mutable std::string cached_text_;         // 文本缓存，避免重复转换
+
+    friend class RequestBuilder;
 };
 
 } // namespace reqhv

@@ -3,53 +3,52 @@
 
 #include "client.hpp"
 #include "client_builder.hpp"
+#include <hv/HttpClient.h>
 
 namespace reqhv {
 
-ClientBuilder::ClientBuilder() = default;
-
 ClientBuilder& ClientBuilder::timeout(std::chrono::milliseconds ms) {
-    timeout_ = ms;
+    config_.timeout = ms;
     return *this;
 }
 
 ClientBuilder& ClientBuilder::connect_timeout(std::chrono::milliseconds ms) {
-    connect_timeout_ = ms;
+    config_.connect_timeout = ms;
     return *this;
 }
 
 ClientBuilder& ClientBuilder::user_agent(std::string_view ua) {
-    user_agent_ = std::string(ua);
+    config_.user_agent = std::string(ua);
     return *this;
 }
 
 ClientBuilder& ClientBuilder::default_headers(const http_headers& headers) {
-    default_headers_ = headers;
+    config_.default_headers = headers;
     return *this;
 }
 
 ClientBuilder& ClientBuilder::cookie_store(bool enable) {
-    cookie_store_ = enable;
+    config_.cookie_store = enable;
     return *this;
 }
 
 ClientBuilder& ClientBuilder::redirect(int max_redirects) {
-    max_redirects_ = max_redirects;
+    config_.max_redirects = max_redirects;
     return *this;
 }
 
 ClientBuilder& ClientBuilder::gzip(bool enable) {
-    gzip_ = enable;
+    config_.gzip = enable;
     return *this;
 }
 
 ClientBuilder& ClientBuilder::danger_accept_invalid_certs(bool accept) {
-    danger_accept_invalid_certs_ = accept;
+    config_.danger_accept_invalid_certs = accept;
     return *this;
 }
 
 Client ClientBuilder::build() {
-    return Client(*this);
+    return Client(std::move(config_));
 }
 
 } // namespace reqhv

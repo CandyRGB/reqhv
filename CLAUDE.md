@@ -27,6 +27,7 @@ reqhv is a C++ HTTP client library inspired by Rust's reqwest, built on top of l
 ### Core Types
 - `Client` - Main HTTP client, created via `Client::builder().build()`
 - `ClientBuilder` - Fluent builder for Client configuration
+- `Config` - Configuration data struct (timeout, user_agent, headers, etc.)
 - `RequestBuilder` - Builds requests with headers, body, auth, etc.
 - `Response` - HTTP response with status, body parsing, headers
 - `HttpException` - Unified error type with status codes
@@ -35,24 +36,27 @@ reqhv is a C++ HTTP client library inspired by Rust's reqwest, built on top of l
 ```
 src/
 ├── reqhv.hpp           # Main entry, exports convenience functions (get/post/etc.)
-├── client.hpp/cpp      # Client class
+├── config.hpp          # Config struct for all client settings
+├── client.hpp/cpp      # Client class (uses hv::HttpClient RAII)
 ├── client_builder.hpp/cpp  # ClientBuilder class
-├── request_builder.hpp/cpp # RequestBuilder class
+├── request_builder.hpp/cpp # RequestBuilder class (uses reference_wrapper<Client>)
 ├── response.hpp/cpp    # Response class
 ├── exception.hpp/cpp   # HttpException class
 └── 3rd/json.hpp        # nlohmann/json header-only library
 ```
 
 ### Key Design Patterns
-- **Builder pattern**: `Client::builder()->timeout(10s)->user_agent("...")->build()`
+- **Builder pattern**: `Client::builder().timeout(10s).user_agent("...")->build()`
 - **Chainable requests**: `client.get(url).header(...).json(data).send()`
 - **Synchronous by default**: `send()` blocks; `send_async()` returns `std::future<Response>`
 - **Redirect handling**: Automatic redirect with 301/302/303 method switching
 - **`delete_` with underscore**: The C++ keyword `delete` cannot be used, so the method is named `delete_`
+- **Config as data**: All client settings stored in `Config` struct, shared between ClientBuilder and Client
+- **RAII via hv::HttpClient**: `Client` wraps `hv::HttpClient` (libhv's C++ RAII wrapper) instead of raw `http_client_t*`
 
 ### libhv Integration
-- Uses `hv_static` (static library) to avoid DLL dependency
-- `http_client_send()` for synchronous requests
+- Uses `hv::HttpClient` (RAII C++ wrapper) instead of raw C API
+- `client.http_client().send(req, resp)` for synchronous requests
 - `http_headers` (typedef for `std::map<std::string, std::string, hv::StringCaseLess>`)
 - `http_method` enum for HTTP verbs (HTTP_GET, HTTP_POST, etc.)
 
@@ -69,17 +73,18 @@ RequestBuilder patch(const std::string& url);
 
 // In client.cpp, implement
 RequestBuilder Client::patch(const std::string& url) {
-    return RequestBuilder(HTTP_PATCH, url);
+    return RequestBuilder(HTTP_PATCH, url, std::ref(*this));
 }
 ```
 
 ### Add a new builder option
-1. Add method declaration in `client_builder.hpp`
-2. Add member variable in private section
-3. Implement in `client_builder.cpp`
-4. Apply in `Client::Client(ClientBuilder&)` constructor
+1. Add member to `Config` struct in `config.hpp`
+2. Add builder method in `ClientBuilder::config_.<option> = value` style
+3. Apply in `Client::Client(const Config&)` constructor
 
 ## Notes
-- Uses C++20 standard but `CMAKE_CXX_EXTENSIONS OFF` (no compiler extensions)
+- Uses C++20 standard
 - IDE include errors are normal before build; resolve after first cmake generation
-- hv.dll is built but not needed when linking against hv_static
+- `RequestBuilder` stores `std::reference_wrapper<Client>`, use `client_.get()` to access
+- `Client` holds `Config config_` and `hv::HttpClient http_client_`
+- Global convenience functions (`reqhv::get()` etc.) use static `Client` singleton

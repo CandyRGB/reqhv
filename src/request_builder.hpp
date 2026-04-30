@@ -3,11 +3,9 @@
 
 #pragma once
 
-#include <chrono>
 #include <functional>
 #include <string>
 #include <memory>
-
 #include <future>
 
 #include <hv/HttpMessage.h>
@@ -18,11 +16,10 @@
 
 namespace reqhv {
 
-// RequestBuilder
+class Client;
+
 class RequestBuilder {
 public:
-    RequestBuilder(http_method method, const std::string& url);
-
     // 链式配置方法
     RequestBuilder& header(std::string_view key, std::string_view value);
     RequestBuilder& headers(const http_headers& headers);
@@ -33,25 +30,25 @@ public:
     RequestBuilder& query(const std::string& params);
     RequestBuilder& bearer_auth(const std::string& token);
     RequestBuilder& basic_auth(const std::string& user, const std::string& pass);
-    RequestBuilder& timeout(std::chrono::milliseconds ms);
 
     // 同步发送，自动处理重定向
     Response send();
 
-    // 低层级同步发送，不处理重定向
-    Response send_sync();
-
-    // 异步发送 - 返回 std::future<Response>
+    // 异步发送，不支持重定向
     std::future<Response> send_async();
 
     HttpRequest* raw_request() { return request_.get(); }
 
 private:
+    RequestBuilder() = delete;
+
+    // 供 Client 调用
+    RequestBuilder(http_method method, const std::string& url, std::reference_wrapper<Client> client);
+    
     std::shared_ptr<HttpRequest> request_;
-    std::chrono::milliseconds timeout_{30000};
+    std::reference_wrapper<Client> client_;
     std::string url_;
     mutable int redirect_count_ = 0;
-    int max_redirects_ = 10;
 
     Response do_send();
 

@@ -2,12 +2,13 @@
 // Licensed under the MIT License
 
 #include "request_builder.hpp"
+#include "client.hpp"
 #include <hv/base64.h>
 
 namespace reqhv {
 
-RequestBuilder::RequestBuilder(http_method method, const std::string& url)
-    : url_(url) {
+RequestBuilder::RequestBuilder(http_method method, const std::string& url, std::reference_wrapper<Client> client)
+    : url_(url), client_(client) {
     request_ = std::make_shared<HttpRequest>();
     request_->method = method;
     request_->url = url;
@@ -66,14 +67,9 @@ RequestBuilder& RequestBuilder::basic_auth(const std::string& user, const std::s
     return *this;
 }
 
-RequestBuilder& RequestBuilder::timeout(std::chrono::milliseconds ms) {
-    timeout_ = ms;
-    return *this;
-}
-
 Response RequestBuilder::do_send() {
     auto resp = std::make_shared<HttpResponse>();
-    int ret = http_client_send(request_.get(), resp.get());
+    int ret = client_.get().http_client().send(request_.get(), resp.get());
     if (ret != 0) {
         throw HttpException::request(ret, url_);
     }
@@ -82,14 +78,11 @@ Response RequestBuilder::do_send() {
     return response;
 }
 
-Response RequestBuilder::send_sync() {
-    return do_send();
-}
-
 Response RequestBuilder::send() {
     auto resp = do_send();
+    int max_redirects = client_.get().max_redirects();
 
-    while (resp.is_redirect() && redirect_count_ < max_redirects_) {
+    while (resp.is_redirect() && redirect_count_ < max_redirects) {
         ++redirect_count_;
         auto location = resp.header("Location");
         if (!location.has_value()) {
@@ -112,9 +105,10 @@ Response RequestBuilder::send() {
 std::future<Response> RequestBuilder::send_async() {
     auto promise = std::make_shared<std::promise<Response>>();
     auto req = request_;
+    auto& cli = client_.get().http_client();
     auto target_url = url_;
 
-    http_client_send_async(req, [promise, target_url](const HttpResponsePtr& resp) {
+    cli.sendAsync(req, [promise, target_url](const HttpResponsePtr& resp) {
         Response response(std::make_shared<HttpResponse>(*resp));
         response.set_url(target_url);
         promise->set_value(std::move(response));

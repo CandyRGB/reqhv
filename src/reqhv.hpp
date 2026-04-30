@@ -9,7 +9,6 @@
 #include "response.hpp"
 #include "exception.hpp"
 
-// Type aliases for convenience
 using Method = http_method;
 
 namespace reqhv {
