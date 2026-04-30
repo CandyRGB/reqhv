@@ -129,13 +129,15 @@ std::future<Response> RequestBuilder::send_async() {
     auto req = request_;
     auto& cli = client_.get().http_client();
     auto target_url = url_;
-
-    cli.sendAsync(req, [promise, target_url](const HttpResponsePtr& resp) {
-        Response response(std::make_shared<HttpResponse>(*resp));
-        response.set_url(target_url);
-        promise->set_value(std::move(response));
-    });
-
+    {
+        // 这里加锁可以保证每条请求会互斥地填充到 libhv 的 EventLoop 中
+        std::lock_guard<std::mutex> lock(async_send_mutex_);
+        cli.sendAsync(req, [promise, target_url](const HttpResponsePtr& resp) {
+            Response response(std::make_shared<HttpResponse>(*resp));
+            response.set_url(target_url);
+            promise->set_value(std::move(response));
+        });
+    }
     return promise->get_future();
 }
 

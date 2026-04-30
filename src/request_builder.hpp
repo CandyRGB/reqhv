@@ -49,6 +49,8 @@ private:
     std::reference_wrapper<Client> client_;
     std::string url_;
     mutable int redirect_count_ = 0;
+    // 发送异步请求锁：libhv 的单实例异步请求会填充到一个 EventLoop 里，但填充之前未保证线程安全
+    mutable std::mutex async_send_mutex_;   
 
     Response do_send();
 
