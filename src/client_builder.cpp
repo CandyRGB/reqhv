@@ -52,6 +52,28 @@ ClientBuilder& ClientBuilder::danger_accept_invalid_certs(bool accept) {
     return *this;
 }
 
+ClientBuilder& ClientBuilder::proxy(const std::string& host, int port) {
+    config_.proxy_host = host;
+    config_.proxy_port = port;
+    return *this;
+}
+
+ClientBuilder& ClientBuilder::https_proxy(const std::string& host, int port) {
+    config_.https_proxy_host = host;
+    config_.https_proxy_port = port;
+    return *this;
+}
+
+ClientBuilder& ClientBuilder::no_proxy(const std::vector<std::string>& hosts) {
+    config_.no_proxy = hosts;
+    return *this;
+}
+
+ClientBuilder& ClientBuilder::no_proxy(std::initializer_list<std::string> hosts) {
+    config_.no_proxy = std::vector<std::string>(hosts);
+    return *this;
+}
+
 Client ClientBuilder::build() {
     return Client(std::move(config_));
 }

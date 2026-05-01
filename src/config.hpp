@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <string>
+#include <vector>
 
 #include <hv/HttpMessage.h>
 
@@ -22,6 +23,12 @@ struct Config {
     int max_redirects{10};                              // 最大重定向次数
     bool gzip{true};                                    // 启用 gzip
     bool danger_accept_invalid_certs{false};            // 接受无效证书
+    // 代理配置
+    std::string proxy_host;             // HTTP 代理主机
+    int proxy_port{0};                  // HTTP 代理端口
+    std::string https_proxy_host;       // HTTPS 代理主机
+    int https_proxy_port{0};            // HTTPS 代理端口
+    std::vector<std::string> no_proxy;  // 跳过代理的域名列表
 };
 
 } // namespace reqhv

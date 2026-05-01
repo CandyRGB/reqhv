@@ -25,6 +25,16 @@ Client::Client(const Config& config)
     if (config_.cookie_store && !config_.cookie_file_path.empty()) {
         cookie_jar_.load(config_.cookie_file_path);
     }
+    // 应用代理配置
+    if (!config_.proxy_host.empty()) {
+        http_client_.setHttpProxy(config_.proxy_host.c_str(), config_.proxy_port);
+    }
+    if (!config_.https_proxy_host.empty()) {
+        http_client_.setHttpsProxy(config_.https_proxy_host.c_str(), config_.https_proxy_port);
+    }
+    for (const auto& h : config_.no_proxy) {
+        http_client_.addNoProxy(h.c_str());
+    }
 }
 
 Client::Client(Client&& other) noexcept
