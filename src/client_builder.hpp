@@ -7,6 +7,8 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <vector>
+#include <initializer_list>
 
 #include "config.hpp"
 
@@ -28,6 +30,10 @@ public:
     ClientBuilder& redirect(int max_redirects);
     ClientBuilder& gzip(bool enable);
     ClientBuilder& danger_accept_invalid_certs(bool accept);
+    ClientBuilder& proxy(const std::string& host, int port);
+    ClientBuilder& https_proxy(const std::string& host, int port);
+    ClientBuilder& no_proxy(const std::vector<std::string>& hosts);
+    ClientBuilder& no_proxy(std::initializer_list<std::string> hosts);
 
     // 构建 Client 实例
     class Client build();

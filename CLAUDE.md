@@ -42,6 +42,7 @@ src/
 ├── request_builder.hpp/cpp # RequestBuilder class (uses reference_wrapper<Client>)
 ├── response.hpp/cpp    # Response class
 ├── exception.hpp/cpp   # HttpException class
+└── cookie_jar.hpp/cpp  # Cookie persistence
 └── 3rd/json.hpp        # nlohmann/json header-only library
 ```
 
