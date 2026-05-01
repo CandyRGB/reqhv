@@ -67,6 +67,20 @@ RequestBuilder& RequestBuilder::basic_auth(const std::string& user, const std::s
     return *this;
 }
 
+RequestBuilder& RequestBuilder::multipart(const std::map<std::string, std::string>& fields) {
+    for (const auto& [key, value] : fields) {
+        request_->SetFormData(key.c_str(), value);
+    }
+    request_->content_type = MULTIPART_FORM_DATA;
+    return *this;
+}
+
+RequestBuilder& RequestBuilder::file(const std::string& name, const std::string& filepath) {
+    request_->SetFormFile(name.c_str(), filepath.c_str());
+    request_->content_type = MULTIPART_FORM_DATA;
+    return *this;
+}
+
 Response RequestBuilder::do_send() {
     // 发送前：从 CookieJar 匹配 URL 对应的 cookies，添加到请求
     if (client_.get().cookie_store_enabled()) {
@@ -77,7 +91,11 @@ Response RequestBuilder::do_send() {
     }
 
     auto resp = std::make_shared<HttpResponse>();
-    int ret = client_.get().http_client().send(request_.get(), resp.get());
+    int ret = 0;
+    {
+        std::lock_guard<std::mutex> lock(client_.get().send_mutex());
+        ret = client_.get().http_client().send(request_.get(), resp.get());
+    }
     if (ret != 0) {
         throw HttpException::request(ret, url_);
     }
@@ -131,7 +149,7 @@ std::future<Response> RequestBuilder::send_async() {
     auto target_url = url_;
     {
         // 这里加锁可以保证每条请求会互斥地填充到 libhv 的 EventLoop 中
-        std::lock_guard<std::mutex> lock(async_send_mutex_);
+        std::lock_guard<std::mutex> lock(client_.get().async_send_mutex());
         cli.sendAsync(req, [promise, target_url](const HttpResponsePtr& resp) {
             Response response(std::make_shared<HttpResponse>(*resp));
             response.set_url(target_url);

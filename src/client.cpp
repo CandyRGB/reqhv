@@ -4,11 +4,13 @@
 #include "request_builder.hpp"
 #include "client.hpp"
 #include "client_builder.hpp"
+#include <hv/hssl.h>
 
 namespace reqhv {
 
-Client Client::create() {
-    return Client(Config{});
+Client& Client::create() {
+    static Client client(Config{});
+    return client;
 }
 
 ClientBuilder Client::builder() {
@@ -34,6 +36,19 @@ Client::Client(const Config& config)
     }
     for (const auto& h : config_.no_proxy) {
         http_client_.addNoProxy(h.c_str());
+    }
+    // 应用 TLS 配置
+    bool has_tls_config = !config_.root_cert_pem.empty()    ||
+                          !config_.client_cert_pem.empty()  ||
+                          !config_.client_key_pem.empty()   ||
+                          config_.danger_accept_invalid_certs;
+    if (has_tls_config) {
+        hssl_ctx_opt_t opt = {};
+        opt.ca_file = config_.root_cert_pem.empty() ? nullptr : config_.root_cert_pem.c_str();
+        opt.crt_file = config_.client_cert_pem.empty() ? nullptr : config_.client_cert_pem.c_str();
+        opt.key_file = config_.client_key_pem.empty() ? nullptr : config_.client_key_pem.c_str();
+        opt.verify_peer = config_.danger_accept_invalid_certs ? 0 : 1;
+        http_client_.newSslCtx(&opt);
     }
 }
 

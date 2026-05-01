@@ -14,7 +14,6 @@ target_include_directories(reqhv_test PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/src/3rd
     ${libhv_SOURCE_DIR}/include
-    ${libhv_BINARY_DIR}/include
 )
 
 gtest_discover_tests(reqhv_test)

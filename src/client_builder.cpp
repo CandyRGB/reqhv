@@ -74,6 +74,17 @@ ClientBuilder& ClientBuilder::no_proxy(std::initializer_list<std::string> hosts)
     return *this;
 }
 
+ClientBuilder& ClientBuilder::add_root_certificate(const std::string& cert_pem) {
+    config_.root_cert_pem = cert_pem;
+    return *this;
+}
+
+ClientBuilder& ClientBuilder::identity(const std::string& cert_pem, const std::string& key_pem) {
+    config_.client_cert_pem = cert_pem;
+    config_.client_key_pem = key_pem;
+    return *this;
+}
+
 Client ClientBuilder::build() {
     return Client(std::move(config_));
 }

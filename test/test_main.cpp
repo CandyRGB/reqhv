@@ -2,6 +2,9 @@
 // Licensed under the MIT License
 
 #include <chrono>
+#include <thread>
+#include <vector>
+#include <atomic>
 #include <gtest/gtest.h>
 #include "reqhv.hpp"
 
@@ -179,4 +182,38 @@ TEST(ReqhvTest, NoProxyConfiguration) {
 
     // no_proxy 配置成功应用即可，实际旁路效果需要代理服务器测试
     SUCCEED() << "No-proxy configuration applied successfully";
+}
+
+TEST(ReqhvTest, MultiThreadSyncRequests) {
+    // 测试多线程下各自创建独立的 Client 实例是否线程安全
+    constexpr int num_threads = 8;
+    constexpr int requests_per_thread = 5;
+    std::atomic<int> success_count{0};
+    std::atomic<int> fail_count{0};
+
+    std::vector<std::thread> threads;
+    for (int t = 0; t < num_threads; ++t) {
+        threads.emplace_back([&]() {
+            for (int i = 0; i < requests_per_thread; ++i) {
+                try {
+                    auto res = reqhv::get("https://httpbin.org/get").send();
+                    if (res.status_code() == 200) {
+                        success_count.fetch_add(1, std::memory_order_relaxed);
+                    } else {
+                        fail_count.fetch_add(1, std::memory_order_relaxed);
+                    }
+                } catch (const std::exception&) {
+                    fail_count.fetch_add(1, std::memory_order_relaxed);
+                }
+            }
+        });
+    }
+
+    for (auto& t : threads) {
+        t.join();
+    }
+
+    EXPECT_EQ(success_count.load(), num_threads * requests_per_thread)
+        << "All " << num_threads * requests_per_thread << " requests should succeed, but got "
+        << success_count.load() << " success and " << fail_count.load() << " failures";
 }

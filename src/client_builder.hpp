@@ -35,6 +35,10 @@ public:
     ClientBuilder& no_proxy(const std::vector<std::string>& hosts);
     ClientBuilder& no_proxy(std::initializer_list<std::string> hosts);
 
+    // TLS 配置
+    ClientBuilder& add_root_certificate(const std::string& cert_pem);
+    ClientBuilder& identity(const std::string& cert_pem, const std::string& key_pem);
+
     // 构建 Client 实例
     class Client build();
 

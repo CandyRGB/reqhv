@@ -20,7 +20,7 @@ namespace reqhv {
 class Client {
 public:
     // 返回一个使用默认配置的 Client
-    static Client create();
+    static Client& create();
 
     // 用于链式配置 Client
     static ClientBuilder builder();
@@ -53,10 +53,17 @@ private:
     int max_redirects() const { return config_.max_redirects; }
     CookieJar& cookie_jar() { return cookie_jar_; }
     bool cookie_store_enabled() const { return config_.cookie_store; }
+    std::mutex& send_mutex() const { return send_mutex_; }
+    std::mutex& async_send_mutex() const { return async_send_mutex_; }
 
     Config config_;
     hv::HttpClient http_client_;
     CookieJar cookie_jar_;
+
+    // 发送请求锁：libhv 的单实例同步请求非线程安全
+    mutable std::mutex send_mutex_;
+    // 发送异步请求锁：libhv 的单实例异步请求会填充到一个 EventLoop 里，但填充之前未保证线程安全
+    mutable std::mutex async_send_mutex_;
 
     friend class ClientBuilder;
     friend class RequestBuilder;

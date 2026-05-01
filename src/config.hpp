@@ -29,6 +29,10 @@ struct Config {
     std::string https_proxy_host;       // HTTPS 代理主机
     int https_proxy_port{0};            // HTTPS 代理端口
     std::vector<std::string> no_proxy;  // 跳过代理的域名列表
+    // TLS 配置
+    std::string root_cert_pem;       // CA 证书 PEM，用于验证服务器证书
+    std::string client_cert_pem;     // 客户端证书 PEM，用于 mTLS
+    std::string client_key_pem;      // 客户端私钥 PEM
 };
 
 } // namespace reqhv

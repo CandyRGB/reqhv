@@ -31,6 +31,10 @@ public:
     RequestBuilder& bearer_auth(const std::string& token);
     RequestBuilder& basic_auth(const std::string& user, const std::string& pass);
 
+    // multipart/form-data
+    RequestBuilder& multipart(const std::map<std::string, std::string>& fields);
+    RequestBuilder& file(const std::string& name, const std::string& filepath);
+
     // 同步发送，自动处理重定向
     Response send();
 
@@ -49,8 +53,6 @@ private:
     std::reference_wrapper<Client> client_;
     std::string url_;
     mutable int redirect_count_ = 0;
-    // 发送异步请求锁：libhv 的单实例异步请求会填充到一个 EventLoop 里，但填充之前未保证线程安全
-    mutable std::mutex async_send_mutex_;   
 
     Response do_send();
 
