@@ -11,10 +11,12 @@
 
 #include "config.hpp"
 #include "client_builder.hpp"
-#include "request_builder.hpp"
 #include "cookie_jar.hpp"
 
 namespace reqhv {
+
+template <bool EnableStream>
+class RequestBuilder;
 
 // HTTP 客户端类
 class Client {
@@ -26,13 +28,13 @@ public:
     static ClientBuilder builder();
 
     // HTTP 方法接口
-    RequestBuilder get(const std::string& url);
-    RequestBuilder post(const std::string& url);
-    RequestBuilder put(const std::string& url);
-    RequestBuilder patch(const std::string& url);
-    RequestBuilder delete_(const std::string& url);
-    RequestBuilder head(const std::string& url);
-    RequestBuilder request(http_method method, const std::string& url);
+    RequestBuilder<false> get(const std::string& url);
+    RequestBuilder<false> post(const std::string& url);
+    RequestBuilder<false> put(const std::string& url);
+    RequestBuilder<false> patch(const std::string& url);
+    RequestBuilder<false> delete_(const std::string& url);
+    RequestBuilder<false> head(const std::string& url);
+    RequestBuilder<false> request(http_method method, const std::string& url);
 
 private:
     Client() = delete;
@@ -53,20 +55,20 @@ private:
     int max_redirects() const { return config_.max_redirects; }
     CookieJar& cookie_jar() { return cookie_jar_; }
     bool cookie_store_enabled() const { return config_.cookie_store; }
-    std::mutex& send_mutex() const { return send_mutex_; }
     std::mutex& async_send_mutex() const { return async_send_mutex_; }
+
+    // 全局锁：保护 libhv 的 g_ssl_ctx 线程安全问题
+    static std::mutex& global_ssl_mutex();
 
     Config config_;
     hv::HttpClient http_client_;
     CookieJar cookie_jar_;
 
-    // 发送请求锁：libhv 的单实例同步请求非线程安全
-    mutable std::mutex send_mutex_;
     // 发送异步请求锁：libhv 的单实例异步请求会填充到一个 EventLoop 里，但填充之前未保证线程安全
     mutable std::mutex async_send_mutex_;
 
     friend class ClientBuilder;
-    friend class RequestBuilder;
+    template<bool> friend class RequestBuilder;
 };
 
 } // namespace reqhv

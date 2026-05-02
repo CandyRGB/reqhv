@@ -5,7 +5,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Build options
-option(BUILD_TESTING "Build tests" ON)
+option(BUILD_EXAMPLE "Build examples" OFF)
+option(BUILD_TESTING "Build tests" OFF)
 
 # FetchContent for dependencies
 include(FetchContent)
@@ -27,10 +28,10 @@ add_library(reqhv STATIC
     src/reqhv.cpp
     src/client.cpp
     src/client_builder.cpp
-    src/request_builder.cpp
     src/response.cpp
     src/exception.cpp
     src/cookie_jar.cpp
+    src/stream_chunk.cpp
 )
 
 target_include_directories(reqhv PUBLIC
@@ -40,6 +41,11 @@ target_link_libraries(reqhv PRIVATE
     hv_static
     3rd
 )
+
+# Examples
+if(BUILD_EXAMPLE)
+    add_subdirectory(examples)
+endif()
 
 # Testing
 if(BUILD_TESTING)

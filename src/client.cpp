@@ -1,10 +1,12 @@
 // Copyright 2026 Tagca Hui
 // Licensed under the MIT License
 
-#include "request_builder.hpp"
 #include "client.hpp"
-#include "client_builder.hpp"
+
 #include <hv/hssl.h>
+
+#include "client_builder.hpp"
+#include "request_builder.hpp"
 
 namespace reqhv {
 
@@ -64,32 +66,38 @@ Client& Client::operator=(Client&& other) noexcept {
     return *this;
 }
 
-RequestBuilder Client::get(const std::string& url) {
-    return RequestBuilder(HTTP_GET, url, std::ref(*this));
+RequestBuilder<false> Client::get(const std::string& url) {
+    return RequestBuilder<false>(HTTP_GET, url, std::ref(*this));
 }
 
-RequestBuilder Client::post(const std::string& url) {
-    return RequestBuilder(HTTP_POST, url, std::ref(*this));
+RequestBuilder<false> Client::post(const std::string& url) {
+    return RequestBuilder<false>(HTTP_POST, url, std::ref(*this));
 }
 
-RequestBuilder Client::put(const std::string& url) {
-    return RequestBuilder(HTTP_PUT, url, std::ref(*this));
+RequestBuilder<false> Client::put(const std::string& url) {
+    return RequestBuilder<false>(HTTP_PUT, url, std::ref(*this));
 }
 
-RequestBuilder Client::patch(const std::string& url) {
-    return RequestBuilder(HTTP_PATCH, url, std::ref(*this));
+RequestBuilder<false> Client::patch(const std::string& url) {
+    return RequestBuilder<false>(HTTP_PATCH, url, std::ref(*this));
 }
 
-RequestBuilder Client::delete_(const std::string& url) {
-    return RequestBuilder(HTTP_DELETE, url, std::ref(*this));
+RequestBuilder<false> Client::delete_(const std::string& url) {
+    return RequestBuilder<false>(HTTP_DELETE, url, std::ref(*this));
 }
 
-RequestBuilder Client::head(const std::string& url) {
-    return RequestBuilder(HTTP_HEAD, url, std::ref(*this));
+RequestBuilder<false> Client::head(const std::string& url) {
+    return RequestBuilder<false>(HTTP_HEAD, url, std::ref(*this));
 }
 
-RequestBuilder Client::request(http_method method, const std::string& url) {
-    return RequestBuilder(method, url, std::ref(*this));
+RequestBuilder<false> Client::request(http_method method, const std::string& url) {
+    return RequestBuilder<false>(method, url, std::ref(*this));
+}
+
+// 全局 SSL 互斥锁：保护 libhv 的 g_ssl_ctx 线程安全问题
+std::mutex& Client::global_ssl_mutex() {
+    static std::mutex mutex;
+    return mutex;
 }
 
 } // namespace reqhv

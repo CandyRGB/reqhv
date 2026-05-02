@@ -3,6 +3,10 @@
 
 #include "response.hpp"
 
+#include <fstream>
+
+#include "exception.hpp"
+
 namespace reqhv {
 
 int Response::status_code() const {
@@ -82,6 +86,19 @@ Response Response::error_for_status() {
         throw HttpException::request(code, url_);
     }
     return *this;
+}
+
+std::optional<uint64_t> Response::content_length() const {
+    if (!response_) return std::nullopt;
+    auto it = response_->headers.find("Content-Length");
+    if (it != response_->headers.end()) {
+        try {
+            return std::stoull(it->second);
+        } catch (...) {
+            return std::nullopt;
+        }
+    }
+    return std::nullopt;
 }
 
 } // namespace reqhv

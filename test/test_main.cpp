@@ -217,3 +217,294 @@ TEST(ReqhvTest, MultiThreadSyncRequests) {
         << "All " << num_threads * requests_per_thread << " requests should succeed, but got "
         << success_count.load() << " success and " << fail_count.load() << " failures";
 }
+
+// 测试 StreamChunk 线程安全性：多线程读取同一个流
+TEST(ReqhvTest, StreamChunkThreadSafety) {
+    // 测试场景：多个线程同时读取同一个 StreamChunk
+    // 模拟生产者(网络回调)写入数据，消费者(用户线程)读取数据
+
+    auto stream_chunk = std::make_shared<reqhv::StreamChunk>();
+
+    constexpr int num_reader_threads = 4;
+    std::atomic<bool> start_reading{false};
+    std::atomic<int> readers_ready{0};
+    std::atomic<int> total_bytes_read{0};
+
+    // 1. 发起流式请求，数据在后台流入
+    std::thread request_thread([&]() {
+        auto client = reqhv::Client::builder().timeout(30s).build();
+        client.get("https://httpbin.org/stream/20")
+              .receive_stream(stream_chunk)
+              .send();
+    });
+
+    // 等待请求发出
+    std::this_thread::sleep_for(100ms);
+
+    // 2. 启动多个读取线程同时消费同一个 StreamChunk
+    std::vector<std::thread> readers;
+    for (int t = 0; t < num_reader_threads; ++t) {
+        readers.emplace_back([&]() {
+            readers_ready.fetch_add(1, std::memory_order_relaxed);
+            // 等待数据开始流入
+            while (!stream_chunk->is_finished() && stream_chunk->received_bytes() == 0) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+            start_reading.store(true, std::memory_order_release);
+
+            while (!stream_chunk->is_finished()) {
+                auto chunk = stream_chunk->try_next();
+                if (chunk) {
+                    total_bytes_read.fetch_add(chunk->size(), std::memory_order_relaxed);
+                }
+            }
+            // 消费剩余数据
+            while (true) {
+                auto chunk = stream_chunk->try_next();
+                if (!chunk) break;
+                total_bytes_read.fetch_add(chunk->size(), std::memory_order_relaxed);
+            }
+        });
+    }
+
+    request_thread.join();
+    for (auto& r : readers) {
+        r.join();
+    }
+
+    EXPECT_GT(total_bytes_read.load(), 0) << "Should have received some data";
+}
+
+// 测试多个 Client 并发流式下载（各自的 StreamChunk）
+TEST(ReqhvTest, MultiClientStreaming) {
+    constexpr int num_clients = 4;
+
+    std::vector<std::pair<std::string, std::string>> endpoints = {
+        {"https://httpbin.org/bytes/1024", "httpbin.org"},
+        {"https://httpbin.org/drip?numbytes=512&duration=1&delay=0", "httpbin.org drip"},
+        {"https://speed.cloudflare.com/__down?bytes=1024", "cloudflare"},
+        {"https://httpbin.org/stream/10", "httpbin.org stream"}
+    };
+
+    std::vector<std::thread> clients;
+    std::atomic<int> success_count{0};
+    std::vector<std::string> errors(num_clients);
+    std::atomic<int> error_idx{0};
+
+    for (int i = 0; i < num_clients; ++i) {
+        auto [url, name] = endpoints[i];
+        clients.emplace_back([&, i, url, name]() {
+            try {
+                std::cout << "[" << name << "] Starting request to " << url << std::endl;
+
+                auto client = reqhv::Client::builder()
+                    .timeout(30s)
+                    .build();
+
+                auto stream = std::make_shared<reqhv::StreamChunk>();
+
+                std::cout << "[" << name << "] Sending request..." << std::endl;
+                auto resp = client.get(url)
+                    .receive_stream(stream)
+                    .send();
+
+                std::cout << "[" << name << "] Response status: " << resp.status_code() << std::endl;
+
+                // 消费数据
+                size_t bytes_received = 0;
+                size_t chunk_count = 0;
+                while (auto chunk = stream->next()) {
+                    bytes_received += chunk->size();
+                    ++chunk_count;
+                }
+
+                std::cout << "[" << name << "] Received " << bytes_received
+                          << " bytes in " << chunk_count << " chunks" << std::endl;
+
+                if (resp.status_code() == 200 && bytes_received > 0) {
+                    success_count.fetch_add(1, std::memory_order_relaxed);
+                    std::cout << "[" << name << "] SUCCESS" << std::endl;
+                } else {
+                    errors[error_idx.fetch_add(1, std::memory_order_relaxed)] =
+                        name + ": status=" + std::to_string(resp.status_code()) +
+                        " bytes=" + std::to_string(bytes_received);
+                    std::cout << "[" << name << "] FAILED: unexpected status or no data" << std::endl;
+                }
+            } catch (const std::exception& e) {
+                errors[error_idx.fetch_add(1, std::memory_order_relaxed)] =
+                    name + ": " + std::string(e.what());
+                std::cout << "[" << name << "] EXCEPTION: " << e.what() << std::endl;
+            }
+        });
+    }
+
+    for (auto& c : clients) {
+        c.join();
+    }
+
+    std::cout << "\n=== Summary ===" << std::endl;
+    std::cout << "Success: " << success_count.load() << "/" << num_clients << std::endl;
+    for (const auto& err : errors) {
+        if (!err.empty()) {
+            std::cerr << "ERROR: " << err << std::endl;
+        }
+    }
+
+    EXPECT_EQ(success_count.load(), num_clients)
+        << "All " << num_clients << " streaming clients should succeed";
+}
+
+// 测试顺序请求（非并发）
+TEST(ReqhvTest, SequentialRequests) {
+    std::vector<std::pair<std::string, std::string>> endpoints = {
+        {"https://httpbin.org/get", "httpbin.org get"},
+        {"https://httpbin.org/headers", "httpbin.org headers"},
+        {"https://httpbin.org/uuid", "httpbin.org uuid"},
+        {"https://httpbin.org/user-agent", "httpbin.org user-agent"}
+    };
+
+    int success_count = 0;
+    for (const auto& [url, name] : endpoints) {
+        try {
+            std::cout << "[" << name << "] Starting..." << std::endl;
+            auto client = reqhv::Client::builder().timeout(30s).build();
+            auto resp = client.get(url).send();
+            std::cout << "[" << name << "] Status: " << resp.status_code() << std::endl;
+            if (resp.status_code() == 200) {
+                ++success_count;
+                std::cout << "[" << name << "] SUCCESS" << std::endl;
+            } else {
+                std::cout << "[" << name << "] FAILED" << std::endl;
+            }
+        } catch (const std::exception& e) {
+            std::cout << "[" << name << "] EXCEPTION: " << e.what() << std::endl;
+        }
+    }
+    std::cout << "\n=== Sequential Summary ===" << std::endl;
+    std::cout << "Success: " << success_count << "/" << endpoints.size() << std::endl;
+    EXPECT_EQ(success_count, static_cast<int>(endpoints.size()));
+}
+
+// 测试顺序流式请求（非并发）
+TEST(ReqhvTest, SequentialStreamingRequests) {
+    std::vector<std::pair<std::string, std::string>> endpoints = {
+        {"https://httpbin.org/bytes/1024", "httpbin.org bytes"},
+        {"https://httpbin.org/stream/10", "httpbin.org stream"},
+        {"https://speed.cloudflare.com/__down?bytes=1024", "cloudflare"}
+    };
+
+    int success_count = 0;
+    for (const auto& [url, name] : endpoints) {
+        try {
+            std::cout << "[" << name << "] Starting..." << std::endl;
+            auto client = reqhv::Client::builder().timeout(30s).build();
+            auto stream = std::make_shared<reqhv::StreamChunk>();
+            auto resp = client.get(url).receive_stream(stream).send();
+            size_t bytes_received = 0;
+            while (auto chunk = stream->next()) {
+                bytes_received += chunk->size();
+            }
+            std::cout << "[" << name << "] Status: " << resp.status_code()
+                      << ", bytes: " << bytes_received << std::endl;
+            if (resp.status_code() == 200 && bytes_received > 0) {
+                ++success_count;
+                std::cout << "[" << name << "] SUCCESS" << std::endl;
+            } else {
+                std::cout << "[" << name << "] FAILED" << std::endl;
+            }
+        } catch (const std::exception& e) {
+            std::cout << "[" << name << "] EXCEPTION: " << e.what() << std::endl;
+        }
+    }
+    std::cout << "\n=== Sequential Streaming Summary ===" << std::endl;
+    std::cout << "Success: " << success_count << "/" << endpoints.size() << std::endl;
+    EXPECT_EQ(success_count, static_cast<int>(endpoints.size()));
+}
+
+// 测试用全局锁保护的并发请求
+TEST(ReqhvTest, MultiClientWithGlobalLock) {
+    static std::mutex global_http_mutex;
+
+    constexpr int num_clients = 4;
+    std::vector<std::pair<std::string, std::string>> endpoints = {
+        {"https://httpbin.org/get", "httpbin.org get"},
+        {"https://httpbin.org/headers", "httpbin.org headers"},
+        {"https://httpbin.org/uuid", "httpbin.org uuid"},
+        {"https://httpbin.org/user-agent", "httpbin.org user-agent"}
+    };
+
+    std::vector<std::thread> clients;
+    std::atomic<int> success_count{0};
+
+    for (int i = 0; i < num_clients; ++i) {
+        auto [url, name] = endpoints[i];
+        clients.emplace_back([&, i, url, name]() {
+            std::lock_guard<std::mutex> lock(global_http_mutex);
+            try {
+                std::cout << "[" << name << "] Starting with global lock..." << std::endl;
+                auto client = reqhv::Client::builder().timeout(30s).build();
+                auto resp = client.get(url).send();
+                std::cout << "[" << name << "] Status: " << resp.status_code() << std::endl;
+                if (resp.status_code() == 200) {
+                    success_count.fetch_add(1, std::memory_order_relaxed);
+                    std::cout << "[" << name << "] SUCCESS" << std::endl;
+                } else {
+                    std::cout << "[" << name << "] FAILED" << std::endl;
+                }
+            } catch (const std::exception& e) {
+                std::cout << "[" << name << "] EXCEPTION: " << e.what() << std::endl;
+            }
+        });
+    }
+
+    for (auto& c : clients) {
+        c.join();
+    }
+
+    std::cout << "\n=== WithGlobalLock Summary ===" << std::endl;
+    std::cout << "Success: " << success_count.load() << "/" << num_clients << std::endl;
+    EXPECT_EQ(success_count.load(), num_clients);
+}
+
+// 测试多个 Client 并发异步请求
+TEST(ReqhvTest, MultiClientAsyncRequests) {
+    constexpr int num_clients = 4;
+    std::vector<std::pair<std::string, std::string>> endpoints = {
+        {"https://httpbin.org/get", "httpbin.org get"},
+        {"https://httpbin.org/headers", "httpbin.org headers"},
+        {"https://httpbin.org/uuid", "httpbin.org uuid"},
+        {"https://httpbin.org/ip", "httpbin.org ip"}
+    };
+
+    std::vector<std::thread> clients;
+    std::atomic<int> success_count{0};
+
+    for (int i = 0; i < num_clients; ++i) {
+        auto [url, name] = endpoints[i];
+        clients.emplace_back([&, i, url, name]() {
+            try {
+                std::cout << "[" << name << "] Starting async request..." << std::endl;
+                auto client = reqhv::Client::builder().timeout(30s).build();
+                auto future = client.get(url).send_async();
+                auto resp = future.get();
+                std::cout << "[" << name << "] Status: " << resp.status_code() << std::endl;
+                if (resp.status_code() == 200) {
+                    success_count.fetch_add(1, std::memory_order_relaxed);
+                    std::cout << "[" << name << "] SUCCESS" << std::endl;
+                } else {
+                    std::cout << "[" << name << "] FAILED" << std::endl;
+                }
+            } catch (const std::exception& e) {
+                std::cout << "[" << name << "] EXCEPTION: " << e.what() << std::endl;
+            }
+        });
+    }
+
+    for (auto& c : clients) {
+        c.join();
+    }
+
+    std::cout << "\n=== MultiClientAsync Summary ===" << std::endl;
+    std::cout << "Success: " << success_count.load() << "/" << num_clients << std::endl;
+    EXPECT_EQ(success_count.load(), num_clients);
+}

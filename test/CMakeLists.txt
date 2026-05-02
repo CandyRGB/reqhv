@@ -8,6 +8,7 @@ add_executable(reqhv_test
 
 target_link_libraries(reqhv_test PRIVATE
     reqhv
+    hv_static
     GTest::gtest_main
 )
 target_include_directories(reqhv_test PRIVATE

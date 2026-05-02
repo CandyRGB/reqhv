@@ -1,9 +1,12 @@
 // Copyright 2026 Tagca Hui
 // Licensed under the MIT License
 
-#include "client.hpp"
+
 #include "client_builder.hpp"
+
 #include <hv/HttpClient.h>
+
+#include "client.hpp"
 
 namespace reqhv {
 

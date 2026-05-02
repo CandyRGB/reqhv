@@ -13,12 +13,12 @@ using Method = http_method;
 
 namespace reqhv {
 
-RequestBuilder get(const std::string& url);
-RequestBuilder post(const std::string& url);
-RequestBuilder put(const std::string& url);
-RequestBuilder patch(const std::string& url);
-RequestBuilder delete_(const std::string& url);
-RequestBuilder head(const std::string& url);
-RequestBuilder request(Method method, const std::string& url);
+RequestBuilder<false> get(const std::string& url);
+RequestBuilder<false> post(const std::string& url);
+RequestBuilder<false> put(const std::string& url);
+RequestBuilder<false> patch(const std::string& url);
+RequestBuilder<false> delete_(const std::string& url);
+RequestBuilder<false> head(const std::string& url);
+RequestBuilder<false> request(Method method, const std::string& url);
 
 } // namespace reqhv

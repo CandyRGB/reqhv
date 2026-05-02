@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <cstddef>
 
 #include <hv/HttpClient.h>
 #include <hv/json.hpp>
@@ -14,6 +15,7 @@
 
 namespace reqhv {
 
+template<bool EnableStream>
 class RequestBuilder;
 
 // HTTP 响应封装类
@@ -39,6 +41,9 @@ public:
     const std::string& url() const { return url_; }
     void set_url(const std::string& url) { url_ = url; }
 
+    // Content-Length header
+    std::optional<uint64_t> content_length() const;
+
     // 若状态码表示错误则抛出异常
     Response error_for_status();
 
@@ -52,12 +57,12 @@ private:
     // 供 RequestBuilder 调用
     explicit Response(std::shared_ptr<HttpResponse> resp)
         : response_(std::move(resp)) {}
-    
+
     std::shared_ptr<HttpResponse> response_;  // libhv 原始响应对象
     std::string url_;                         // 最终请求 URL（跟随重定向后）
     mutable std::string cached_text_;         // 文本缓存，避免重复转换
 
-    friend class RequestBuilder;
+    template<bool> friend class RequestBuilder;
 };
 
 } // namespace reqhv

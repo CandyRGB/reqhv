@@ -2,6 +2,7 @@
 // Licensed under the MIT License
 
 #include "cookie_jar.hpp"
+
 #include <fstream>
 #include <algorithm>
 
