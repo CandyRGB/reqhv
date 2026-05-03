@@ -52,7 +52,6 @@ private:
 
     // 供 RequestBuilder 调用
     hv::HttpClient& http_client() { return http_client_; }
-    int max_redirects() const { return config_.max_redirects; }
     bool cookie_store_enabled() const { return config_.cookie_store; }
     CookieJar& cookie_jar() { return cookie_jar_; }
     std::mutex& async_send_mutex() const { return async_send_mutex_; }

@@ -13,6 +13,15 @@ int Response::status_code() const {
     return response_ ? response_->status_code : 0;
 }
 
+std::string Response::reason_phrase() const {
+    return response_ ? response_->status_message() : "";
+}
+
+std::string Response::version() const {
+    if (!response_) return {};
+    return std::format("HTTP/{}.{}", response_->http_major, response_->http_minor);
+}
+
 bool Response::is_success() const {
     auto code = status_code();
     return code >= 200 && code < 300;
@@ -58,7 +67,7 @@ nlohmann::json Response::json() const {
     try {
         return nlohmann::json::parse(body_str);
     } catch (const nlohmann::json::parse_error& e) {
-        throw HttpException::decode(std::string("JSON parse error: ") + e.what());
+        throw HttpException::decode(std::format("JSON parse error: {}", e.what()));
     }
 }
 
@@ -99,6 +108,11 @@ std::optional<uint64_t> Response::content_length() const {
         }
     }
     return std::nullopt;
+}
+
+std::vector<HttpCookie> Response::cookies() const {
+    if (!response_) return {};
+    return response_->cookies;
 }
 
 } // namespace reqhv

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <functional>
 #include <string>
 #include <memory>
@@ -29,13 +30,20 @@ public:
     RequestBuilder& body(const char* data, size_t len);
     RequestBuilder& json(const nlohmann::json& data);
     RequestBuilder& form(const std::map<std::string, std::string>& data);
-    RequestBuilder& query(const std::string& params);
+
+    // 查询参数，支持多种类型
+    template<typename T>
+    RequestBuilder& query(std::string key, T value);
     RequestBuilder& bearer_auth(const std::string& token);
     RequestBuilder& basic_auth(const std::string& user, const std::string& pass);
 
     // multipart/form-data
     RequestBuilder& multipart(const std::map<std::string, std::string>& fields);
     RequestBuilder& file(const std::string& name, const std::string& filepath);
+
+    // 超时覆盖（覆盖客户端级别超时）
+    RequestBuilder& timeout(std::chrono::milliseconds ms);         // 请求超时
+    RequestBuilder& connect_timeout(std::chrono::milliseconds ms); // 连接超时
 
     // 同步发送，libhv 原生自动处理重定向
     Response send();
@@ -98,10 +106,10 @@ private:
 
 template<bool EnableStream>
 inline RequestBuilder<EnableStream>::RequestBuilder(
-        http_method method,
-        const std::string& url,
-        std::reference_wrapper<Client> client
-    ) : url_(url), client_(client) {
+    http_method method,
+    const std::string& url,
+    std::reference_wrapper<Client> client
+) : url_(url), client_(client) {
     request_ = std::make_shared<HttpRequest>();
     request_->method = method;
     request_->url = url;
@@ -109,41 +117,41 @@ inline RequestBuilder<EnableStream>::RequestBuilder(
 
 template<bool EnableStream>
 inline RequestBuilder<EnableStream>& RequestBuilder<EnableStream>::header(
-        std::string_view key,
-        std::string_view value
-    ) {
+    std::string_view key,
+    std::string_view value
+) {
     request_->headers[std::string(key)] = std::string(value);
     return *this;
 }
 
 template<bool EnableStream>
 inline RequestBuilder<EnableStream>& RequestBuilder<EnableStream>::headers(
-        const http_headers& headers
-    ) {
+    const http_headers& headers
+) {
     request_->headers = headers;
     return *this;
 }
 
 template<bool EnableStream>
 inline RequestBuilder<EnableStream>& RequestBuilder<EnableStream>::body(
-        std::string data
-    ) {
+    std::string data
+) {
     request_->body = std::move(data);
     return *this;
 }
 
 template<bool EnableStream>
 inline RequestBuilder<EnableStream>& RequestBuilder<EnableStream>::body(
-        const char* data, size_t len
-    ) {
+    const char* data, size_t len
+) {
     request_->body.assign(data, len);
     return *this;
 }
 
 template<bool EnableStream>
 inline RequestBuilder<EnableStream>& RequestBuilder<EnableStream>::json(
-        const nlohmann::json& data
-    ) {
+    const nlohmann::json& data
+) {
     request_->json = data;
     request_->content_type = APPLICATION_JSON;
     return *this;
@@ -151,48 +159,46 @@ inline RequestBuilder<EnableStream>& RequestBuilder<EnableStream>::json(
 
 template<bool EnableStream>
 inline RequestBuilder<EnableStream>& RequestBuilder<EnableStream>::form(
-        const std::map<std::string, std::string>& data
-    ) {
+    const std::map<std::string, std::string>& data
+) {
     request_->kv = data;
     request_->content_type = X_WWW_FORM_URLENCODED;
     return *this;
 }
 
 template<bool EnableStream>
+template<typename T>
 inline RequestBuilder<EnableStream>& RequestBuilder<EnableStream>::query(
-        const std::string& params
-    ) {
-    if (!url_.empty() && url_.find('?') == std::string::npos) {
-        url_ += '?';
-        url_ += params;
-        request_->url = url_;
-    }
+    std::string key,
+    T value
+) {
+    request_->SetParam(std::move(key), std::move(value));
     return *this;
 }
 
 template<bool EnableStream>
 inline RequestBuilder<EnableStream>& RequestBuilder<EnableStream>::bearer_auth(
-        const std::string& token
-    ) {
-    request_->headers["Authorization"] = "Bearer " + token;
+    const std::string& token
+) {
+    request_->headers["Authorization"] = std::format("Bearer {}", token);
     return *this;
 }
 
 template<bool EnableStream>
 inline RequestBuilder<EnableStream>& RequestBuilder<EnableStream>::basic_auth(
-        const std::string& user,
-        const std::string& pass
-    ) {
-    auto user_pass = user + ":" + pass;
+    const std::string& user,
+    const std::string& pass
+) {
+    auto user_pass = std::format("{}:{}", user, pass);
     std::string encoded = hv::Base64Encode((const unsigned char*)user_pass.data(), (unsigned int)user_pass.size());
-    request_->headers["Authorization"] = "Basic " + encoded;
+    request_->headers["Authorization"] = std::format("Basic {}", encoded);
     return *this;
 }
 
 template<bool EnableStream>
 inline RequestBuilder<EnableStream>& RequestBuilder<EnableStream>::multipart(
-        const std::map<std::string, std::string>& fields
-    ) {
+    const std::map<std::string, std::string>& fields
+) {
     for (const auto& [key, value] : fields) {
         request_->SetFormData(key.c_str(), value);
     }
@@ -202,11 +208,27 @@ inline RequestBuilder<EnableStream>& RequestBuilder<EnableStream>::multipart(
 
 template<bool EnableStream>
 inline RequestBuilder<EnableStream>& RequestBuilder<EnableStream>::file(
-        const std::string& name,
-        const std::string& filepath
-    ) {
+    const std::string& name,
+    const std::string& filepath
+) {
     request_->SetFormFile(name.c_str(), filepath.c_str());
     request_->content_type = MULTIPART_FORM_DATA;
+    return *this;
+}
+
+template<bool EnableStream>
+inline RequestBuilder<EnableStream>& RequestBuilder<EnableStream>::timeout(
+    std::chrono::milliseconds ms
+) {
+    request_->timeout = static_cast<uint16_t>(ms.count() / 1000);
+    return *this;
+}
+
+template<bool EnableStream>
+inline RequestBuilder<EnableStream>& RequestBuilder<EnableStream>::connect_timeout(
+    std::chrono::milliseconds ms
+) {
+    request_->connect_timeout = static_cast<uint16_t>(ms.count() / 1000);
     return *this;
 }
 

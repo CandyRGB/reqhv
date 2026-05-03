@@ -24,6 +24,8 @@ class Response {
 public:
     // 状态码相关
     int status_code() const;             // 获取 HTTP 状态码
+    std::string reason_phrase() const;   // 获取状态描述文本，如 "OK", "Not Found"
+    std::string version() const;         // 获取 HTTP 版本，如 "HTTP/1.1"
     bool is_success() const;             // 2xx 表示成功
     bool is_redirect() const;            // 3xx 重定向
     bool is_client_error() const;        // 4xx 客户端错误
@@ -43,6 +45,9 @@ public:
 
     // Content-Length header
     std::optional<uint64_t> content_length() const;
+
+    // Cookie 访问
+    std::vector<HttpCookie> cookies() const;
 
     // 若状态码表示错误则抛出异常
     Response error_for_status();

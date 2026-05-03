@@ -20,8 +20,6 @@ struct Config {
     http_headers default_headers;                       // 默认请求头
     bool cookie_store{true};                            // 启用 Cookie
     std::string cookie_file_path;                       // Cookie 持久化文件路径
-    int max_redirects{10};                              // 最大重定向次数
-    bool gzip{true};                                    // 启用 gzip
     bool danger_accept_invalid_certs{false};            // 接受无效证书
     // 代理配置
     std::string proxy_host;             // HTTP 代理主机

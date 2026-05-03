@@ -45,13 +45,3 @@ TEST_F(IntegrationRedirectTest, MultipleRedirects) {
     auto res = reqhv::get("http://127.0.0.1:19991/multi-redirect").send();
     EXPECT_EQ(res.status_code(), 200);
 }
-
-TEST_F(IntegrationRedirectTest, MaxRedirectsLimit) {
-    auto client = reqhv::Client::builder()
-        .timeout(5s)
-        .redirect(2)
-        .build();
-
-    auto res = client.get("http://127.0.0.1:19991/limit-redirects?remaining=5").send();
-    EXPECT_EQ(res.status_code(), 200);
-}

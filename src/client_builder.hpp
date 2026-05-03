@@ -27,8 +27,6 @@ public:
     ClientBuilder& default_headers(const http_headers& headers);
     ClientBuilder& cookie_store(bool enable);
     ClientBuilder& cookie_path(const std::string& path);
-    ClientBuilder& redirect(int max_redirects);
-    ClientBuilder& gzip(bool enable);
     ClientBuilder& danger_accept_invalid_certs(bool accept);
     ClientBuilder& proxy(const std::string& host, int port);
     ClientBuilder& https_proxy(const std::string& host, int port);

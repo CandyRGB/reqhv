@@ -40,16 +40,6 @@ ClientBuilder& ClientBuilder::cookie_path(const std::string& path) {
     return *this;
 }
 
-ClientBuilder& ClientBuilder::redirect(int max_redirects) {
-    config_.max_redirects = max_redirects;
-    return *this;
-}
-
-ClientBuilder& ClientBuilder::gzip(bool enable) {
-    config_.gzip = enable;
-    return *this;
-}
-
 ClientBuilder& ClientBuilder::danger_accept_invalid_certs(bool accept) {
     config_.danger_accept_invalid_certs = accept;
     return *this;
