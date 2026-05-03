@@ -2,7 +2,7 @@
 
 # reqhv
 
-A C++ HTTP client library inspired by Rust's [reqwes](https://docs.rs/reqwest/latest/reqwest/index.html), built on top of [libhv](https://github.com/ithewei/libhv).
+A C++ HTTP client library inspired by Rust's [reqwest](https://docs.rs/reqwest/latest/reqwest/index.html), built on top of [libhv](https://github.com/ithewei/libhv).
 
 ## Features
 
