@@ -2,9 +2,6 @@ cmake_minimum_required(VERSION 3.16)
 
 include(GoogleTest)
 
-# Copy Python scripts to build directory
-file(COPY ${CMAKE_SOURCE_DIR}/test/scripts/ DESTINATION ${CMAKE_BINARY_DIR}/test/scripts/)
-
 # 单元测试 - CookieJar, StreamChunk（无需网络）
 add_executable(reqhv_unit_test
     unit/cookie_jar_test.cpp
