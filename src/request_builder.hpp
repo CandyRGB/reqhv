@@ -37,10 +37,10 @@ public:
     RequestBuilder& multipart(const std::map<std::string, std::string>& fields);
     RequestBuilder& file(const std::string& name, const std::string& filepath);
 
-    // 同步发送，自动处理重定向
+    // 同步发送，libhv 原生自动处理重定向
     Response send();
 
-    // 异步发送，不支持重定向
+    // 异步发送，libhv 原生自动处理重定向
     std::future<Response> send_async()
         requires (!EnableStream) {
         auto promise = std::make_shared<std::promise<Response>>();
@@ -77,8 +77,7 @@ private:
     RequestBuilder(RequestBuilder<Other>&& other) noexcept
         : request_(std::move(other.request_)),
           client_(other.client_),
-          url_(std::move(other.url_)),
-          redirect_count_(other.redirect_count_)
+          url_(std::move(other.url_))
     {}
 
     // 供 Client 调用
@@ -87,7 +86,6 @@ private:
     std::shared_ptr<HttpRequest> request_;
     std::reference_wrapper<Client> client_;
     std::string url_;
-    mutable int redirect_count_ = 0;
 
     Response do_send();
 
@@ -225,18 +223,13 @@ template<bool EnableStream>
 inline void RequestBuilder<EnableStream>::save_cookie(const HttpResponsePtr& resp) {
     if (!client_.get().cookie_store_enabled()) return;
     auto& jar = client_.get().cookie_jar();
-    for (const auto& [key, value] : resp->headers) {
-        if (key == "Set-Cookie") {
-            HttpCookie cookie;
-            if (cookie.parse(value)) {
-                jar.add(cookie);
-            }
-        }
+    for (const auto& cookie : resp->cookies) {
+        jar.add(cookie);
     }
 }
 
 template<bool EnableStream>
-inline Response RequestBuilder<EnableStream>::do_send() {
+inline Response RequestBuilder<EnableStream>::send() {
     // 发送前：从 CookieJar 匹配 URL 对应的 cookies，添加到请求
     add_cookies();
 
@@ -257,31 +250,6 @@ inline Response RequestBuilder<EnableStream>::do_send() {
     Response response(resp);
     response.set_url(url_);
     return response;
-}
-
-template<bool EnableStream>
-inline Response RequestBuilder<EnableStream>::send() {
-    auto resp = do_send();
-    int max_redirects = client_.get().max_redirects();
-
-    while (resp.is_redirect() && redirect_count_ < max_redirects) {
-        ++redirect_count_;
-        auto location = resp.header("Location");
-        if (!location.has_value()) {
-            break;
-        }
-        url_ = *location;
-        request_->url = url_;
-        auto status = resp.status_code();
-        if ((status == 301 || status == 302 || status == 303) &&
-            request_->method == HTTP_POST) {
-            request_->method = HTTP_GET;
-            request_->body.clear();
-        }
-        resp = do_send();
-    }
-
-    return resp;
 }
 
 } // namespace reqhv

@@ -6,19 +6,27 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Build options
 option(BUILD_EXAMPLE "Build examples" OFF)
-option(BUILD_TESTING "Build tests" OFF)
+option(BUILD_TESTING "Build tests" ON)
+
+macro(find_or_fetch PACKAGE_NAME REPO_URL TAG)
+    find_package(${PACKAGE_NAME} QUIET)
+    if(NOT ${PACKAGE_NAME}_FOUND)
+        FetchContent_Declare(
+            ${PACKAGE_NAME}
+            GIT_REPOSITORY ${REPO_URL}
+            GIT_TAG        ${TAG}
+            GIT_SHALLOW    TRUE
+        )
+        FetchContent_MakeAvailable(${PACKAGE_NAME})
+    endif()
+endmacro()
 
 # FetchContent for dependencies
+set(FETCHCONTENT_BASE_DIR ${CMAKE_SOURCE_DIR}/.deps)
 include(FetchContent)
 
 # libhv
-FetchContent_Declare(
-    libhv
-    GIT_REPOSITORY https://gitee.com/libhv/libhv.git
-    GIT_TAG v1.3.4
-    GIT_SHALLOW TRUE
-)
-FetchContent_MakeAvailable(libhv)
+find_or_fetch(libhv https://gitee.com/libhv/libhv.git v1.3.4)
 
 # 3rd party
 add_subdirectory(src/3rd)
@@ -35,11 +43,20 @@ add_library(reqhv STATIC
 )
 
 target_include_directories(reqhv PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+    $<INSTALL_INTERFACE:include>
 )
-target_link_libraries(reqhv PRIVATE
+
+target_link_libraries(reqhv PUBLIC
     hv_static
     3rd
+)
+
+install(TARGETS reqhv
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+    INCLUDES DESTINATION include
 )
 
 # Examples
@@ -52,13 +69,7 @@ if(BUILD_TESTING)
     enable_testing()
 
     # GoogleTest
-    FetchContent_Declare(
-        googletest
-        GIT_REPOSITORY https://github.com/google/googletest.git
-        GIT_TAG v1.14.0
-        GIT_SHALLOW TRUE
-    )
-    FetchContent_MakeAvailable(googletest)
+    find_or_fetch(googletest https://gitee.com/mirrors/googletest.git v1.14.0)
 
     add_subdirectory(test)
 endif()

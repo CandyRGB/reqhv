@@ -17,7 +17,12 @@ ctest -C Debug --output-on-failure
 ctest -C Debug --output-on-failure -R "TestName"
 
 # Build with local libhv (if not using FetchContent)
-LIBHV_SOURCE_DIR="E:/Projects/libhv" cmake ..
+cmake ..
+
+# Build with examples and tests
+mkdir build && cd build
+cmake .. -G "Visual Studio 17 2022" -A x64 -DBUILD_EXAMPLE=ON -DBUILD_TESTING=ON
+cmake --build . --config Debug
 ```
 
 ## Architecture
@@ -25,10 +30,10 @@ LIBHV_SOURCE_DIR="E:/Projects/libhv" cmake ..
 reqhv is a C++ HTTP client library inspired by Rust's reqwest, built on top of libhv 1.3.4.
 
 ### Core Types
-- `Client` - Main HTTP client, created via `Client::builder().build()`
+- `Client` - Main HTTP client, created via `Client::builder().build()` or `Client::create()` for defaults
 - `ClientBuilder` - Fluent builder for Client configuration
-- `Config` - Configuration data struct (timeout, user_agent, headers, etc.)
-- `RequestBuilder` - Builds requests with headers, body, auth, etc.
+- `Config` - Configuration data struct (timeout, user_agent, headers, proxy, TLS, etc.)
+- `RequestBuilder<false>` - Builds regular requests with headers, body, auth; `RequestBuilder<true>` for streaming
 - `Response` - HTTP response with status, body parsing, headers
 - `HttpException` - Unified error type with status codes
 
@@ -42,8 +47,18 @@ src/
 ├── request_builder.hpp/cpp # RequestBuilder class (uses reference_wrapper<Client>)
 ├── response.hpp/cpp    # Response class
 ├── exception.hpp/cpp   # HttpException class
-└── cookie_jar.hpp/cpp  # Cookie persistence
+├── cookie_jar.hpp/cpp  # Cookie persistence
+├── stream_chunk.hpp/cpp # Streaming response support
 └── 3rd/json.hpp        # nlohmann/json header-only library
+```
+
+### Examples
+```
+examples/
+├── basic/      # Basic GET/POST requests
+├── response/   # Response parsing
+├── async/      # Async requests with futures
+└── download/   # Stream download with progress
 ```
 
 ### Key Design Patterns
@@ -52,6 +67,7 @@ src/
 - **Synchronous by default**: `send()` blocks; `send_async()` returns `std::future<Response>`
 - **Redirect handling**: Automatic redirect with 301/302/303 method switching
 - **`delete_` with underscore**: The C++ keyword `delete` cannot be used, so the method is named `delete_`
+- **Streaming responses**: `RequestBuilder::receive_stream()` returns `StreamChunk` for chunked/stream download
 - **Config as data**: All client settings stored in `Config` struct, shared between ClientBuilder and Client
 - **RAII via hv::HttpClient**: `Client` wraps `hv::HttpClient` (libhv's C++ RAII wrapper) instead of raw `http_client_t*`
 

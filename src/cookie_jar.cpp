@@ -37,13 +37,17 @@ void CookieJar::parse_url(const std::string& url, std::string& domain, std::stri
 }
 
 // RFC 6265 域名匹配实现：
-// - 精确匹配或空域名匹配
+// - 空域名匹配任何域名（即默认适用于当前域）
+// - 精确匹配
 // - 以点开头 → 匹配子域名（".example.com" 匹配 "api.example.com"）
 bool CookieJar::domain_matches(const std::string& cookie_domain, const std::string& request_domain) {
-    if (cookie_domain.empty() || cookie_domain == request_domain) {
-        return cookie_domain == request_domain;
+    if (cookie_domain.empty()) {
+        return true;  // 空域名匹配任何域名
     }
-    if (!cookie_domain.empty() && cookie_domain.front() == '.') {
+    if (cookie_domain == request_domain) {
+        return true;
+    }
+    if (cookie_domain.front() == '.') {
         auto base = cookie_domain.substr(1);
         return request_domain == base || request_domain.ends_with(base);
     }
@@ -99,6 +103,14 @@ void CookieJar::remove(const std::string& name, const std::string& domain) {
                     [&](const HttpCookie& c) { return c.name == name; }),
                 cookies.end());
         }
+        // 清理空域名 entry
+        for (auto it = cookies_.begin(); it != cookies_.end(); ) {
+            if (it->second.empty()) {
+                it = cookies_.erase(it);
+            } else {
+                ++it;
+            }
+        }
     } else {
         auto it = cookies_.find(domain);
         if (it != cookies_.end()) {
@@ -106,6 +118,9 @@ void CookieJar::remove(const std::string& name, const std::string& domain) {
                 std::remove_if(it->second.begin(), it->second.end(),
                     [&](const HttpCookie& c) { return c.name == name; }),
                 it->second.end());
+            if (it->second.empty()) {
+                cookies_.erase(it);
+            }
         }
     }
 }
